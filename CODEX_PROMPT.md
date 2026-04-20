@@ -11,7 +11,7 @@ NICHE: portfolio-tools
 PRICE: $$9/mo
 
 ARCHITECTURE SPEC:
-A Next.js application with GitHub OAuth integration that automatically fetches repository data, analyzes code and deployments, then generates beautiful portfolio showcases. Uses Supabase for user data and portfolio configurations, with Lemon Squeezy handling subscriptions.
+A Next.js application with GitHub OAuth integration that automatically fetches repository data, analyzes tech stacks, and generates beautiful portfolio showcases. Uses Supabase for user data and portfolio configurations, with Lemon Squeezy for subscription management.
 
 PLANNED FILES:
 - app/page.tsx
@@ -20,15 +20,15 @@ PLANNED FILES:
 - app/api/auth/github/route.ts
 - app/api/repos/sync/route.ts
 - app/api/webhooks/lemonsqueezy/route.ts
-- components/portfolio-builder.tsx
-- components/project-showcase.tsx
-- components/tech-stack-analyzer.tsx
-- lib/github-api.ts
+- components/portfolio/ProjectCard.tsx
+- components/portfolio/TechStackBadge.tsx
+- components/dashboard/RepoSelector.tsx
+- lib/github.ts
 - lib/supabase.ts
 - lib/lemonsqueezy.ts
 - types/portfolio.ts
 
-DEPENDENCIES: next, react, typescript, tailwindcss, @supabase/supabase-js, @octokit/rest, next-auth, @lemonsqueezy/lemonsqueezy.js, framer-motion, react-syntax-highlighter, recharts, lucide-react, zod
+DEPENDENCIES: next, react, tailwindcss, @supabase/supabase-js, @octokit/rest, @lemonsqueezy/lemonsqueezy.js, next-auth, framer-motion, recharts, lucide-react, date-fns, zod
 
 REQUIREMENTS:
 - Next.js 15 with App Router (app/ directory)

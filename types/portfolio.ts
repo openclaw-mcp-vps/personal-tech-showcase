@@ -1,55 +1,33 @@
-export interface CommitPoint {
-  date: string;
-  count: number;
-}
-
-export interface ProjectMetric {
+export interface ProjectImpactMetrics {
   stars: number;
   forks: number;
   openIssues: number;
+  contributors: number;
   commitsLast30Days: number;
+  latestCommitAt: string | null;
+  deploymentUrl: string | null;
+  velocityLabel: string;
 }
 
-export interface CodeSnippet {
-  fileName: string;
-  language: string;
-  content: string;
-}
-
-export interface ProjectShowcase {
+export interface PortfolioProject {
   id: number;
+  owner: string;
   name: string;
   fullName: string;
   description: string;
-  homepage: string | null;
-  repoUrl: string;
-  language: string;
+  htmlUrl: string;
+  homepageUrl: string | null;
+  language: string | null;
   topics: string[];
+  stack: string[];
+  snippet: string;
+  updatedAt: string;
   pushedAt: string;
-  metrics: ProjectMetric;
-  commitHistory: CommitPoint[];
-  snippet: CodeSnippet;
+  impact: ProjectImpactMetrics;
 }
 
-export interface TechStackSummary {
-  totalRepos: number;
-  totalStars: number;
-  primaryLanguages: Array<{ name: string; value: number }>;
-  deploymentCoverage: number;
-}
-
-export interface PortfolioProfile {
-  githubLogin: string;
-  displayName: string;
-  headline: string;
-  summary: string;
-  avatarUrl: string;
+export interface RepoSyncResponse {
+  username: string;
   syncedAt: string;
-  projects: ProjectShowcase[];
-  stackSummary: TechStackSummary;
-}
-
-export interface PortfolioSyncResponse {
-  ok: boolean;
-  portfolio: PortfolioProfile;
+  projects: PortfolioProject[];
 }

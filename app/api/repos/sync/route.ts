@@ -1,64 +1,59 @@
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { buildPortfolioFromGitHubToken } from "@/lib/github-api";
-import { getSupabaseClient } from "@/lib/supabase";
-import type { PortfolioProfile } from "@/types/portfolio";
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
-const STORE_PATH = path.join(process.cwd(), "data", "portfolios.json");
+import { fetchPortfolioProjectsForViewer } from "@/lib/github";
+import { savePortfolioProjects } from "@/lib/supabase";
 
-async function readPortfolioStore(): Promise<Record<string, PortfolioProfile>> {
-  try {
-    const raw = await readFile(STORE_PATH, "utf8");
-    return JSON.parse(raw) as Record<string, PortfolioProfile>;
-  } catch {
-    return {};
-  }
-}
+const requestSchema = z
+  .object({
+    limit: z.coerce.number().min(1).max(12).default(12)
+  })
+  .partial();
 
-async function writePortfolioStore(data: Record<string, PortfolioProfile>): Promise<void> {
-  await mkdir(path.dirname(STORE_PATH), { recursive: true });
-  await writeFile(STORE_PATH, JSON.stringify(data, null, 2), "utf8");
-}
+const PAYWALL_COOKIE = "pts_paid";
+const GITHUB_TOKEN_COOKIE = "gh_token";
 
-export async function POST(): Promise<NextResponse> {
-  const cookieStore = await cookies();
-  const hasAccess = cookieStore.get("pts_access")?.value === "granted";
-  const token = cookieStore.get("gh_token")?.value;
-
+export async function POST(request: NextRequest) {
+  const hasAccess = request.cookies.get(PAYWALL_COOKIE)?.value === "1";
   if (!hasAccess) {
-    return NextResponse.json(
-      { error: "Access locked. Purchase required." },
-      { status: 402 },
-    );
+    return NextResponse.json({ error: "Paid access required." }, { status: 402 });
   }
 
-  if (!token) {
+  const githubToken = request.cookies.get(GITHUB_TOKEN_COOKIE)?.value;
+  if (!githubToken) {
     return NextResponse.json(
-      { error: "GitHub OAuth token not found." },
-      { status: 401 },
-    );
-  }
-
-  const portfolio = await buildPortfolioFromGitHubToken(token);
-
-  const supabase = getSupabaseClient();
-  if (supabase) {
-    await supabase.from("portfolios").upsert(
       {
-        github_login: portfolio.githubLogin,
-        display_name: portfolio.displayName,
-        payload: portfolio,
-        synced_at: portfolio.syncedAt,
+        error: "GitHub account not connected.",
+        authUrl: "/api/auth/github"
       },
-      { onConflict: "github_login" },
+      { status: 401 }
     );
   }
 
-  const store = await readPortfolioStore();
-  store[portfolio.githubLogin] = portfolio;
-  await writePortfolioStore(store);
+  const body = await request.json().catch(() => ({}));
+  const parsed = requestSchema.safeParse(body);
 
-  return NextResponse.json({ ok: true, portfolio });
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid sync payload." }, { status: 400 });
+  }
+
+  try {
+    const result = await fetchPortfolioProjectsForViewer(githubToken, parsed.data.limit ?? 12);
+
+    await savePortfolioProjects(result.username, result.projects);
+
+    return NextResponse.json({
+      username: result.username,
+      syncedAt: new Date().toISOString(),
+      projects: result.projects
+    });
+  } catch (error) {
+    console.error("Failed to sync repositories", error);
+    return NextResponse.json(
+      {
+        error: "Could not sync repositories. Reconnect GitHub and try again."
+      },
+      { status: 500 }
+    );
+  }
 }

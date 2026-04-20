@@ -1,55 +1,42 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { NextResponse } from "next/server";
-import { verifyLemonSignature } from "@/lib/lemonsqueezy";
+import { NextRequest, NextResponse } from "next/server";
 
-const PURCHASE_STORE_PATH = path.join(process.cwd(), "data", "purchases.json");
+import {
+  extractCheckoutToken,
+  extractCustomerEmail,
+  isPaidLemonEvent,
+  verifyLemonSignature
+} from "@/lib/lemonsqueezy";
+import { markCheckoutAsPaid } from "@/lib/paywall";
+import { saveLemonWebhookEvent } from "@/lib/supabase";
 
-interface PurchaseRecord {
-  email: string;
-  status: string;
-  updatedAt: string;
-}
-
-async function loadPurchases(): Promise<Record<string, PurchaseRecord>> {
-  try {
-    const raw = await readFile(PURCHASE_STORE_PATH, "utf8");
-    return JSON.parse(raw) as Record<string, PurchaseRecord>;
-  } catch {
-    return {};
-  }
-}
-
-async function savePurchases(data: Record<string, PurchaseRecord>): Promise<void> {
-  await mkdir(path.dirname(PURCHASE_STORE_PATH), { recursive: true });
-  await writeFile(PURCHASE_STORE_PATH, JSON.stringify(data, null, 2), "utf8");
-}
-
-export async function POST(request: Request): Promise<NextResponse> {
-  const payload = await request.text();
+export async function POST(request: NextRequest) {
+  const rawBody = await request.text();
   const signature = request.headers.get("x-signature") ?? "";
+  const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET ?? "";
 
-  if (!verifyLemonSignature(payload, signature)) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  if (secret && !verifyLemonSignature(rawBody, signature, secret)) {
+    return NextResponse.json({ error: "Invalid webhook signature." }, { status: 401 });
   }
 
-  const event = JSON.parse(payload) as {
-    meta?: { event_name?: string };
-    data?: { attributes?: { user_email?: string; status?: string } };
+  const payload = JSON.parse(rawBody) as {
+    data?: {
+      id?: string;
+    };
   };
 
-  const email = event.data?.attributes?.user_email;
-  if (!email) {
-    return NextResponse.json({ ok: true });
+  await saveLemonWebhookEvent(payload);
+
+  if (isPaidLemonEvent(payload)) {
+    const checkoutToken = extractCheckoutToken(payload);
+
+    if (checkoutToken) {
+      await markCheckoutAsPaid({
+        token: checkoutToken,
+        orderId: payload.data?.id,
+        customerEmail: extractCustomerEmail(payload)
+      });
+    }
   }
 
-  const purchases = await loadPurchases();
-  purchases[email] = {
-    email,
-    status: event.data?.attributes?.status ?? event.meta?.event_name ?? "active",
-    updatedAt: new Date().toISOString(),
-  };
-  await savePurchases(purchases);
-
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ received: true });
 }

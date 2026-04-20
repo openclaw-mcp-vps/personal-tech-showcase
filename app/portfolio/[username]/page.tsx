@@ -1,113 +1,97 @@
+import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { Badge } from "@/components/ui/badge";
-import { ProjectShowcase } from "@/components/project-showcase";
-import { TechStackAnalyzer } from "@/components/tech-stack-analyzer";
-import type { PortfolioProfile } from "@/types/portfolio";
+import { BarChart3, Clock3, Rocket } from "lucide-react";
 
-async function getPortfolio(username: string): Promise<PortfolioProfile | null> {
-  if (username === "demo-engineer") {
-    return {
-      githubLogin: "demo-engineer",
-      displayName: "Demo Engineer",
-      headline: "Full-stack engineer shipping resilient products from idea to production",
-      summary:
-        "I focus on high-leverage backend and product engineering. My work combines shipping speed, clean architecture, and clear operational metrics.",
-      avatarUrl: "https://avatars.githubusercontent.com/u/9919?v=4",
-      syncedAt: new Date().toISOString(),
-      stackSummary: {
-        totalRepos: 4,
-        totalStars: 182,
-        deploymentCoverage: 75,
-        primaryLanguages: [
-          { name: "TypeScript", value: 2 },
-          { name: "Go", value: 1 },
-          { name: "Python", value: 1 },
-        ],
-      },
-      projects: [
-        {
-          id: 1001,
-          name: "commerce-control-center",
-          fullName: "demo-engineer/commerce-control-center",
-          description:
-            "Admin platform that unified order orchestration and reduced manual support operations by 34%.",
-          homepage: "https://example.com",
-          repoUrl: "https://github.com/demo-engineer/commerce-control-center",
-          language: "TypeScript",
-          topics: ["nextjs", "postgres", "payments"],
-          pushedAt: new Date().toISOString(),
-          metrics: {
-            stars: 61,
-            forks: 11,
-            openIssues: 4,
-            commitsLast30Days: 26,
-          },
-          commitHistory: [
-            { date: "2026-03-30", count: 1 },
-            { date: "2026-04-01", count: 2 },
-            { date: "2026-04-04", count: 3 },
-            { date: "2026-04-08", count: 4 },
-            { date: "2026-04-14", count: 2 },
-          ],
-          snippet: {
-            fileName: "app/api/orders/route.ts",
-            language: "typescript",
-            content:
-              "export async function POST(req: Request) {\n  const payload = await req.json();\n  const plan = buildFulfillmentPlan(payload.items);\n  await queue.publish('fulfillment.created', plan);\n  return Response.json({ ok: true, id: plan.id });\n}",
-          },
-        },
-      ],
-    };
-  }
+import { ProjectCard } from "@/components/portfolio/ProjectCard";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { fetchPublicPortfolioProjects } from "@/lib/github";
+import { readPortfolioProjects } from "@/lib/supabase";
 
-  const filePath = path.join(process.cwd(), "data", "portfolios.json");
-  try {
-    const raw = await readFile(filePath, "utf8");
-    const payload = JSON.parse(raw) as Record<string, PortfolioProfile>;
-    return payload[username] ?? null;
-  } catch {
-    return null;
-  }
+type PageProps = {
+  params: Promise<{ username: string }>;
+};
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { username } = await params;
+
+  return {
+    title: `${username} portfolio`,
+    description:
+      "Explore a technical portfolio generated from live GitHub repositories, commit activity, and project outcomes.",
+    openGraph: {
+      title: `${username} | Personal Tech Showcase`,
+      description:
+        "Production projects, stack decisions, and engineering metrics in one portfolio page.",
+      type: "profile"
+    }
+  };
 }
 
-export default async function PublicPortfolioPage({
-  params,
-}: {
-  params: Promise<{ username: string }>;
-}) {
+export default async function PortfolioPage({ params }: PageProps) {
   const { username } = await params;
-  const portfolio = await getPortfolio(username);
 
-  if (!portfolio) {
+  const storedProjects = await readPortfolioProjects(username);
+  const projects = storedProjects ?? (await fetchPublicPortfolioProjects(username, 8));
+
+  if (projects.length === 0) {
     notFound();
   }
 
+  const totalStars = projects.reduce((sum, project) => sum + project.impact.stars, 0);
+  const totalCommits = projects.reduce(
+    (sum, project) => sum + project.impact.commitsLast30Days,
+    0
+  );
+  const deployments = projects.filter((project) => Boolean(project.homepageUrl)).length;
+
   return (
-    <main className="mx-auto min-h-screen w-full max-w-6xl px-6 pb-20 pt-10 md:px-10">
-      <section className="rounded-2xl border border-[#263042] bg-[#161b22] p-6">
-        <p className="text-sm text-[#9fb0c3]">Portfolio by @{portfolio.githubLogin}</p>
-        <h1 className="mt-2 text-3xl font-bold">{portfolio.displayName}</h1>
-        <p className="mt-1 text-lg text-[#c9d1d9]">{portfolio.headline}</p>
-        <p className="mt-3 max-w-3xl text-sm text-[#9fb0c3]">{portfolio.summary}</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Badge className="bg-[#0d1117] text-[#9fb0c3]">
-            Synced {new Date(portfolio.syncedAt).toLocaleDateString()}
-          </Badge>
-          <Badge className="bg-[#0d1117] text-[#2f81f7]">
-            {portfolio.stackSummary.totalRepos} featured projects
-          </Badge>
-        </div>
+    <main className="mx-auto max-w-6xl px-4 pb-20 pt-10 sm:px-6 lg:px-8">
+      <header className="mb-8 rounded-3xl border border-cyan-500/20 bg-slate-900/60 p-6">
+        <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">Public Showcase</p>
+        <h1 className="mt-2 text-3xl font-semibold text-slate-100 sm:text-4xl">@{username}</h1>
+        <p className="mt-2 max-w-2xl text-sm text-slate-300">
+          A live technical portfolio generated from GitHub activity, curated for recruiters, hiring
+          managers, and clients who want clear evidence of execution.
+        </p>
+        <Link href="/" className="mt-4 inline-block text-sm text-cyan-300 hover:text-cyan-200">
+          Build your own portfolio with Personal Tech Showcase
+        </Link>
+      </header>
+
+      <section className="mb-8 grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BarChart3 className="h-4 w-4 text-cyan-300" />
+              Total Stars
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold text-slate-100">{totalStars}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Clock3 className="h-4 w-4 text-emerald-300" />
+              Commits (30d)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold text-slate-100">{totalCommits}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Rocket className="h-4 w-4 text-violet-300" />
+              Live Deployments
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold text-slate-100">{deployments}</CardContent>
+        </Card>
       </section>
 
-      <section className="mt-8">
-        <TechStackAnalyzer summary={portfolio.stackSummary} />
-      </section>
-
-      <section className="mt-8 space-y-5">
-        {portfolio.projects.map((project) => (
-          <ProjectShowcase key={project.id} project={project} />
+      <section className="grid gap-4 md:grid-cols-2">
+        {projects.map((project) => (
+          <ProjectCard key={project.id} project={project} />
         ))}
       </section>
     </main>

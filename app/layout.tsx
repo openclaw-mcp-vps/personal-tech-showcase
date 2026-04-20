@@ -1,65 +1,63 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import Script from "next/script";
+import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
+
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
+const heading = Space_Grotesk({
   subsets: ["latin"],
+  variable: "--font-heading",
+  weight: ["500", "600", "700"]
 });
 
-const jetBrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
+const mono = IBM_Plex_Mono({
   subsets: ["latin"],
+  variable: "--font-mono",
+  weight: ["400", "500"]
 });
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export const metadata: Metadata = {
-  title: "ShowBuild | Share your personal tech projects beautifully",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "Personal Tech Showcase",
+    template: "%s | Personal Tech Showcase"
+  },
   description:
-    "Turn your GitHub repositories into recruiter-ready project showcases with live demos, code stories, and measurable impact.",
-  metadataBase: new URL("https://showbuild.dev"),
-  openGraph: {
-    title: "ShowBuild",
-    description:
-      "Portfolio builder for developers who want their technical depth to stand out.",
-    url: "https://showbuild.dev",
-    siteName: "ShowBuild",
-    type: "website",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "ShowBuild portfolio builder preview",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "ShowBuild",
-    description:
-      "Auto-generate a technical portfolio from your GitHub repos, commits, and deployment links.",
-    images: ["/og-image.png"],
-  },
+    "Turn your GitHub repositories into polished, outcome-focused portfolio pages with live demos, stack insights, and impact metrics recruiters care about.",
   keywords: [
     "developer portfolio",
     "GitHub portfolio",
-    "technical showcase",
-    "recruiter portfolio",
-    "freelancer branding",
+    "project showcase",
+    "portfolio builder",
+    "developer branding"
   ],
+  openGraph: {
+    title: "Personal Tech Showcase",
+    description:
+      "Automatically transform your repositories into compelling technical case studies.",
+    url: siteUrl,
+    siteName: "Personal Tech Showcase",
+    type: "website"
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Personal Tech Showcase",
+    description:
+      "Share your personal tech projects beautifully with automated GitHub storytelling."
+  }
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      className={`${spaceGrotesk.variable} ${jetBrainsMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full bg-[#0d1117] text-[#e6edf3]">{children}</body>
+    <html lang="en" className="dark">
+      <body
+        className={`${heading.variable} ${mono.variable} bg-[#0d1117] text-slate-100 antialiased`}
+      >
+        <Script src="https://assets.lemonsqueezy.com/lemon.js" strategy="afterInteractive" />
+        {children}
+      </body>
     </html>
   );
 }
