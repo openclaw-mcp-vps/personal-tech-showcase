@@ -1,96 +1,48 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { z } from "zod";
+import { createClient } from "@supabase/supabase-js";
 
-import { type PortfolioProject } from "@/types/portfolio";
+import type { PortfolioConfig } from "@/types/portfolio";
 
-const projectRowSchema = z.object({
-  payload: z.custom<PortfolioProject>()
-});
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-let serverClient: SupabaseClient | null = null;
-
-function hasSupabaseConfig() {
-  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
-}
-
-export function getSupabaseServerClient() {
-  if (!hasSupabaseConfig()) {
+export function getSupabaseClient() {
+  if (!supabaseUrl || !supabaseAnonKey) {
     return null;
   }
 
-  if (!serverClient) {
-    serverClient = createClient(
-      process.env.SUPABASE_URL as string,
-      process.env.SUPABASE_SERVICE_ROLE_KEY as string,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    );
-  }
-
-  return serverClient;
-}
-
-export async function savePortfolioProjects(
-  username: string,
-  projects: PortfolioProject[]
-): Promise<void> {
-  const client = getSupabaseServerClient();
-  if (!client || projects.length === 0) return;
-
-  const rows = projects.map((project) => ({
-    username,
-    project_id: project.id,
-    payload: project,
-    updated_at: new Date().toISOString()
-  }));
-
-  const { error } = await client.from("portfolio_projects").upsert(rows, {
-    onConflict: "username,project_id"
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false
+    }
   });
-
-  if (error) {
-    console.warn("Unable to persist portfolio projects in Supabase:", error.message);
-  }
 }
 
-export async function readPortfolioProjects(
-  username: string
-): Promise<PortfolioProject[] | null> {
-  const client = getSupabaseServerClient();
-  if (!client) return null;
-
-  const { data, error } = await client
-    .from("portfolio_projects")
-    .select("payload")
-    .eq("username", username)
-    .order("updated_at", { ascending: false });
-
-  if (error || !data || data.length === 0) {
+export function getSupabaseServiceClient() {
+  if (!supabaseUrl || !serviceRoleKey) {
     return null;
   }
 
-  const parsed = data
-    .map((row) => projectRowSchema.safeParse(row))
-    .filter((result) => result.success)
-    .map((result) => result.data.payload);
-
-  return parsed.length > 0 ? parsed : null;
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false
+    }
+  });
 }
 
-export async function saveLemonWebhookEvent(payload: unknown): Promise<void> {
-  const client = getSupabaseServerClient();
-  if (!client) return;
+export async function savePortfolioConfig(config: PortfolioConfig) {
+  const supabase = getSupabaseServiceClient();
+  if (!supabase) {
+    return { persisted: false, reason: "Supabase service role is not configured." } as const;
+  }
 
-  const { error } = await client.from("subscription_events").insert({
-    payload,
-    created_at: new Date().toISOString()
+  const { error } = await supabase.from("portfolio_configs").upsert(config, {
+    onConflict: "username"
   });
 
   if (error) {
-    console.warn("Unable to persist Lemon Squeezy webhook event:", error.message);
+    return { persisted: false, reason: error.message } as const;
   }
+
+  return { persisted: true } as const;
 }

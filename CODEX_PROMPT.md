@@ -11,24 +11,27 @@ NICHE: portfolio-tools
 PRICE: $$9/mo
 
 ARCHITECTURE SPEC:
-A Next.js application with GitHub OAuth integration that automatically fetches repository data, analyzes tech stacks, and generates beautiful portfolio showcases. Uses Supabase for user data and portfolio configurations, with Lemon Squeezy for subscription management.
+A Next.js application that connects to GitHub API to fetch repository data, analyzes projects automatically, and generates beautiful portfolio showcases. Uses Supabase for user data and project configurations, with Lemon Squeezy handling subscriptions.
 
 PLANNED FILES:
 - app/page.tsx
 - app/dashboard/page.tsx
-- app/portfolio/[username]/page.tsx
-- app/api/auth/github/route.ts
-- app/api/repos/sync/route.ts
+- app/showcase/[username]/page.tsx
+- app/api/github/repos/route.ts
+- app/api/github/analyze/route.ts
 - app/api/webhooks/lemonsqueezy/route.ts
-- components/portfolio/ProjectCard.tsx
-- components/portfolio/TechStackBadge.tsx
-- components/dashboard/RepoSelector.tsx
-- lib/github.ts
+- components/ui/repo-card.tsx
+- components/ui/tech-stack-badge.tsx
+- components/ui/metrics-display.tsx
+- components/portfolio-builder.tsx
+- components/showcase-preview.tsx
+- lib/github-api.ts
+- lib/project-analyzer.ts
 - lib/supabase.ts
 - lib/lemonsqueezy.ts
 - types/portfolio.ts
 
-DEPENDENCIES: next, react, tailwindcss, @supabase/supabase-js, @octokit/rest, @lemonsqueezy/lemonsqueezy.js, next-auth, framer-motion, recharts, lucide-react, date-fns, zod
+DEPENDENCIES: next, react, tailwindcss, @supabase/supabase-js, @lemonsqueezy/lemonsqueezy.js, octokit, framer-motion, lucide-react, date-fns, zod, react-hook-form
 
 REQUIREMENTS:
 - Next.js 15 with App Router (app/ directory)

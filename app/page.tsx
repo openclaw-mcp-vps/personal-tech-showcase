@@ -1,141 +1,179 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, GitCommitHorizontal, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Gauge, GitBranch, LayoutTemplate, Sparkles } from "lucide-react";
 
-import { CheckoutButton } from "@/components/landing/CheckoutButton";
+import { CheckoutOverlayButton } from "@/components/checkout-overlay-button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const faqItems = [
+const faq = [
   {
-    q: "How does Personal Tech Showcase stand out from static portfolio templates?",
-    a: "Instead of asking you to manually write every project bullet, it analyzes repositories, surfaces delivery signals, and converts your work into case-study style cards with technical depth."
+    question: "How is this different from a normal portfolio site?",
+    answer:
+      "Instead of static project blurbs, Personal Tech Showcase reads repository activity, extracts technical signals, and turns each project into a narrative with engineering outcomes and stack credibility."
   },
   {
-    q: "Can recruiters view my portfolio without logging in?",
-    a: "Yes. Each portfolio gets a public route at /portfolio/{username} so hiring managers can review your projects, stack choices, and momentum in one link."
+    question: "Do I need to give full GitHub access?",
+    answer:
+      "No. Public repositories work immediately. A GitHub token is optional and only used to raise API limits or include private repositories you choose to surface."
   },
   {
-    q: "What happens after I purchase?",
-    a: "Checkout unlocks the dashboard through a secure access cookie. You can connect GitHub, sync repositories, and immediately publish project showcases."
+    question: "Can I share one public link with recruiters?",
+    answer:
+      "Yes. Every curated profile gets a public `/showcase/{username}` route that presents selected projects with commit momentum, impact metrics, and live demo links."
   },
   {
-    q: "Will this work for freelancers and client proposals?",
-    a: "Yes. The generated project story emphasizes outcomes, architecture, and impact metrics so you can communicate technical credibility quickly in proposal workflows."
+    question: "What happens after payment?",
+    answer:
+      "Checkout runs in a Lemon Squeezy overlay. On successful purchase, dashboard access is granted using a secure cookie so you can immediately start building your portfolio."
+  }
+];
+
+const painPoints = [
+  "Portfolio sites are hand-maintained and stale within weeks.",
+  "Most project lists fail to prove engineering depth or delivery consistency.",
+  "Recruiters cannot quickly identify impact, ownership, or technical range."
+];
+
+const outcomes = [
+  {
+    icon: GitBranch,
+    title: "Automated GitHub Intelligence",
+    description:
+      "Pull repository metadata, commit history, README context, and tech stack signals without manual data entry."
+  },
+  {
+    icon: LayoutTemplate,
+    title: "Narrative Project Cards",
+    description:
+      "Generate project stories that explain what was built, why it mattered, and which technologies drove the result."
+  },
+  {
+    icon: Gauge,
+    title: "Impact Metrics That Matter",
+    description:
+      "Highlight release cadence, adoption indicators, and maintenance quality to demonstrate real-world delivery."
   }
 ];
 
 export default function HomePage() {
   return (
-    <main className="mx-auto max-w-6xl px-4 pb-24 pt-10 sm:px-6 lg:px-8">
-      <header className="rounded-3xl border border-cyan-500/20 bg-slate-900/50 px-6 py-12 shadow-[0_30px_120px_-45px_rgba(34,211,238,0.8)] sm:px-10">
-        <p className="inline-flex items-center rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-cyan-300">
-          Portfolio Tools for Working Developers
-        </p>
-        <h1 className="mt-5 max-w-3xl text-4xl font-semibold leading-tight text-slate-50 sm:text-6xl">
-          Share your personal tech projects beautifully.
-        </h1>
-        <p className="mt-6 max-w-3xl text-lg text-slate-300">
-          Personal Tech Showcase turns your GitHub history into polished project stories with live
-          demo links, stack decisions, and delivery metrics so recruiters and clients instantly see
-          your engineering depth.
-        </p>
-        <div className="mt-8 flex flex-wrap items-center gap-3">
-          <CheckoutButton />
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-cyan-400/50 hover:text-cyan-300"
-          >
-            Open dashboard
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Link>
-        </div>
-        <p className="mt-4 text-sm text-slate-400">
-          $9/month. Cancel anytime. Built for mid-level startup developers and freelancers.
-        </p>
-      </header>
+    <main className="grid-glow min-h-screen">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-20 pt-8 sm:px-6 lg:px-8">
+        <header className="rounded-2xl border border-[var(--border)] bg-[#0f141b]/90 p-6 shadow-sm backdrop-blur sm:p-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#1f6feb]/40 bg-[#1f6feb]/10 px-3 py-1 text-xs font-semibold tracking-wide text-[#9ecbff]">
+            <Sparkles className="h-3.5 w-3.5" />
+            Portfolio Tools for Builders Who Ship
+          </div>
+          <h1 className="mt-5 max-w-3xl text-3xl font-semibold leading-tight sm:text-5xl">
+            Share your personal tech projects beautifully
+          </h1>
+          <p className="mt-4 max-w-2xl text-base text-[var(--muted-foreground)] sm:text-lg">
+            Personal Tech Showcase transforms your GitHub repositories into a polished portfolio with live demos,
+            tech-stack context, and measurable impact so recruiters and clients see your actual engineering value fast.
+          </p>
 
-      <section className="mt-14 grid gap-5 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-cyan-200">
-              <GitCommitHorizontal className="h-5 w-5" />
-              Problem
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-slate-300">
-            Most portfolios are static lists of links. They rarely show technical decisions,
-            iteration speed, or real project impact.
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-emerald-200">
-              <CheckCircle2 className="h-5 w-5" />
-              Solution
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-slate-300">
-            Sync repos, auto-detect stacks, highlight commits and deployment URLs, and publish a
-            portfolio that tells the story behind each build.
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-violet-200">
-              <ShieldCheck className="h-5 w-5" />
-              Why It Converts
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-slate-300">
-            Hiring teams can evaluate capability fast: problem framing, implementation depth, and
-            consistent execution signals are presented in one page.
-          </CardContent>
-        </Card>
-      </section>
+          <div className="mt-7 flex flex-wrap items-center gap-3">
+            <CheckoutOverlayButton />
+            <Button variant="ghost" asChild>
+              <Link href="/dashboard">
+                I already paid
+                <ArrowRight className="ml-1.5 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+          <p className="mt-3 text-sm text-[var(--muted-foreground)]">$9/month • Cancel anytime • Lemon Squeezy billing</p>
+        </header>
 
-      <section className="mt-16 grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>What You Get in the Dashboard</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-3 text-sm text-slate-300">
-              <li>Automatic repository ingestion with commit velocity and contributor analytics.</li>
-              <li>Project cards that surface tech stack, deployment URL, and business impact cues.</li>
-              <li>Portfolio publishing at a clean public URL for applications and client outreach.</li>
-              <li>Continuous sync so your portfolio evolves as your codebase evolves.</li>
-            </ul>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Pricing</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-4xl font-semibold text-slate-50">
-              $9<span className="text-base text-slate-400">/month</span>
-            </p>
-            <p className="mt-3 text-sm text-slate-300">
-              Purpose-built for developers who need a serious portfolio without spending weekends
-              handcrafting pages.
-            </p>
-            <CheckoutButton className="mt-5" label="Get instant access" />
-          </CardContent>
-        </Card>
-      </section>
+        <section className="mt-14 grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl">The Problem</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-[var(--muted-foreground)]">
+              {painPoints.map((point) => (
+                <p key={point} className="flex items-start gap-2">
+                  <span className="mt-2 h-1.5 w-1.5 rounded-full bg-[#f85149]" />
+                  <span>{point}</span>
+                </p>
+              ))}
+            </CardContent>
+          </Card>
 
-      <section className="mt-16">
-        <h2 className="text-2xl font-semibold text-slate-100">Frequently Asked Questions</h2>
-        <div className="mt-5 grid gap-4">
-          {faqItems.map((item) => (
-            <Card key={item.q}>
-              <CardHeader>
-                <CardTitle className="text-base">{item.q}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-slate-300">{item.a}</CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl">The Outcome</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {outcomes.map((item) => (
+                <div key={item.title} className="rounded-lg border border-[var(--border)] bg-[#0f141b] p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-[#9ecbff]">
+                    <item.icon className="h-4 w-4" />
+                    {item.title}
+                  </div>
+                  <p className="mt-2 text-sm text-[var(--muted-foreground)]">{item.description}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="mt-14">
+          <Card className="surface overflow-hidden">
+            <div className="grid gap-0 lg:grid-cols-[1.1fr_1fr]">
+              <div className="p-7 sm:p-10">
+                <h2 className="text-2xl font-semibold">A portfolio that proves technical depth, not just project titles</h2>
+                <p className="mt-3 text-[var(--muted-foreground)]">
+                  Build a showcase that communicates architecture choices, execution velocity, and maintenance discipline.
+                  Every project card is backed by source-of-truth repository data.
+                </p>
+                <ul className="mt-5 space-y-2 text-sm">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />
+                    <span>Auto-detect deployed demos and surface them alongside source code</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />
+                    <span>Highlight technology breadth with stack badges and domain-specific topics</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />
+                    <span>Show commit momentum and adoption signals for stronger recruiter trust</span>
+                  </li>
+                </ul>
+              </div>
+              <div className="border-t border-[var(--border)] bg-[#0f141b] p-7 lg:border-l lg:border-t-0 sm:p-10">
+                <h3 className="text-lg font-semibold">Pricing</h3>
+                <p className="mt-1 text-sm text-[var(--muted-foreground)]">One plan. Everything needed to publish quickly.</p>
+                <div className="mt-5 rounded-xl border border-[#2f81f7]/50 bg-[#1f6feb]/10 p-5">
+                  <p className="text-3xl font-semibold">$9<span className="text-base text-[var(--muted-foreground)]"> / month</span></p>
+                  <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                    Includes dashboard access, automated GitHub analysis, and a shareable public showcase route.
+                  </p>
+                  <div className="mt-5">
+                    <CheckoutOverlayButton />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </section>
+
+        <section className="mt-14">
+          <h2 className="text-2xl font-semibold">Frequently Asked Questions</h2>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {faq.map((entry) => (
+              <Card key={entry.question}>
+                <CardHeader>
+                  <CardTitle className="text-base">{entry.question}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-[var(--muted-foreground)]">{entry.answer}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      </div>
     </main>
   );
 }

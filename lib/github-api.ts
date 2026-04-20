@@ -1,241 +1,184 @@
-import { Octokit } from "@octokit/rest";
-import { z } from "zod";
-import type {
-  CodeSnippet,
-  CommitPoint,
-  PortfolioProfile,
-  ProjectShowcase,
-  TechStackSummary,
-} from "@/types/portfolio";
+import { subDays } from "date-fns";
+import { Octokit } from "octokit";
 
-const OAuthTokenSchema = z.object({
-  access_token: z.string(),
-  token_type: z.string(),
-  scope: z.string().optional(),
-});
+import type { PortfolioProject, RepoCommit } from "@/types/portfolio";
 
-export function createGitHubOAuthUrl(origin: string, state: string): string {
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  if (!clientId) {
-    throw new Error("Missing GITHUB_CLIENT_ID");
+const DEFAULT_LOOKBACK_DAYS = 30;
+
+function createOctokit(token?: string) {
+  const auth = token || process.env.GITHUB_TOKEN;
+  return auth ? new Octokit({ auth }) : new Octokit();
+}
+
+function decodeBase64(content: string) {
+  return Buffer.from(content, "base64").toString("utf8");
+}
+
+function normalizeReadmeSnippet(readme: string) {
+  const withoutCodeBlocks = readme.replace(/```[\s\S]*?```/g, "");
+  const withoutHeaders = withoutCodeBlocks.replace(/^#{1,6}\s+/gm, "").trim();
+  const firstParagraph = withoutHeaders.split(/\n\s*\n/).find((paragraph) => paragraph.trim().length > 80);
+
+  if (!firstParagraph) {
+    return "This project demonstrates production-level implementation choices, practical architecture, and measurable engineering outcomes.";
   }
 
-  const redirectUri = `${origin}/api/auth/github`;
-  const params = new URLSearchParams({
-    client_id: clientId,
-    redirect_uri: redirectUri,
-    scope: "repo read:user",
-    state,
-    allow_signup: "true",
-  });
-
-  return `https://github.com/login/oauth/authorize?${params.toString()}`;
+  return firstParagraph.replace(/\s+/g, " ").slice(0, 320);
 }
 
-export async function exchangeGitHubCodeForToken(
-  code: string,
-  origin: string,
-): Promise<string> {
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  const clientSecret = process.env.GITHUB_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    throw new Error("Missing GitHub OAuth environment variables");
+function resolveDemoUrl(homepage: string | null, topics: string[]) {
+  if (homepage && /^https?:\/\//.test(homepage)) {
+    return homepage;
   }
 
-  const response = await fetch("https://github.com/login/oauth/access_token", {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      code,
-      redirect_uri: `${origin}/api/auth/github`,
-    }),
-  });
+  if (topics.includes("vercel") || topics.includes("netlify") || topics.includes("demo")) {
+    return homepage ?? undefined;
+  }
 
-  const payload = OAuthTokenSchema.parse(await response.json());
-  return payload.access_token;
+  return undefined;
 }
 
-function getFileLanguage(fileName: string): string {
-  if (fileName.endsWith(".tsx") || fileName.endsWith(".ts")) return "typescript";
-  if (fileName.endsWith(".jsx") || fileName.endsWith(".js")) return "javascript";
-  if (fileName.endsWith(".py")) return "python";
-  if (fileName.endsWith(".go")) return "go";
-  if (fileName.endsWith(".rs")) return "rust";
-  return "text";
+function buildStory(repoName: string, techStack: string[], commits30d: number, hasDemo: boolean, stars: number) {
+  const stackPreview = techStack.slice(0, 3).join(", ");
+  const maintenanceSignal = commits30d >= 8 ? "active delivery momentum" : "steady long-term maintenance";
+  const proof = hasDemo
+    ? "A live deployment is available, so reviewers can validate behavior end-to-end."
+    : "The codebase is structured for extension, with clear modular boundaries and documentation-ready patterns.";
+
+  return `${repoName} is built with ${stackPreview}, showing ${maintenanceSignal}. ${proof} Community validation includes ${stars} stars, reinforcing practical usefulness.`;
 }
 
-async function getCodeSnippet(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<CodeSnippet> {
+async function fetchRepoLanguages(octokit: Octokit, owner: string, repo: string) {
   try {
-    const tree = await octokit.git.getTree({
+    const response = await octokit.request("GET /repos/{owner}/{repo}/languages", {
       owner,
-      repo,
-      tree_sha: "HEAD",
-      recursive: "true",
+      repo
     });
 
-    const snippetPath =
-      tree.data.tree.find((item) =>
-        item.path?.match(/(app\/page\.tsx|src\/App\.tsx|main\.py|index\.js)$/),
-      )?.path ?? "README.md";
-
-    const content = await octokit.repos.getContent({
-      owner,
-      repo,
-      path: snippetPath,
-    });
-
-    if ("content" in content.data && content.data.content) {
-      const decoded = Buffer.from(content.data.content, "base64").toString("utf8");
-      return {
-        fileName: snippetPath,
-        language: getFileLanguage(snippetPath),
-        content: decoded.slice(0, 480),
-      };
-    }
+    return Object.keys(response.data);
   } catch {
-    // fall through to default snippet
+    return [] as string[];
   }
-
-  return {
-    fileName: "README.md",
-    language: "markdown",
-    content:
-      "No code snippet could be extracted automatically. Sync again after pushing your latest branch and adding a project README.",
-  };
 }
 
-async function getCommitHistory(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<{ commitsLast30Days: number; points: CommitPoint[] }> {
-  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const commits = await octokit.repos.listCommits({
-    owner,
-    repo,
-    since,
-    per_page: 100,
-  });
+async function fetchRecentCommits(octokit: Octokit, owner: string, repo: string, since: string) {
+  try {
+    const response = await octokit.request("GET /repos/{owner}/{repo}/commits", {
+      owner,
+      repo,
+      per_page: 30,
+      since
+    });
 
-  const dateMap = new Map<string, number>();
-  commits.data.forEach((commit) => {
-    const date = commit.commit.author?.date?.slice(0, 10);
-    if (!date) return;
-    dateMap.set(date, (dateMap.get(date) ?? 0) + 1);
-  });
+    return response.data
+      .map((item) => {
+        const authoredAt = item.commit.author?.date;
+        const authorName = item.commit.author?.name;
 
-  const points = Array.from(dateMap.entries())
-    .map(([date, count]) => ({ date, count }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+        if (!authoredAt || !authorName) {
+          return null;
+        }
 
-  return {
-    commitsLast30Days: commits.data.length,
-    points,
-  };
+        return {
+          sha: item.sha,
+          message: item.commit.message.split("\n")[0],
+          authoredAt,
+          authorName
+        } satisfies RepoCommit;
+      })
+      .filter((entry): entry is RepoCommit => entry !== null);
+  } catch {
+    return [] as RepoCommit[];
+  }
 }
 
-function buildStackSummary(projects: ProjectShowcase[]): TechStackSummary {
-  const langCounts = new Map<string, number>();
-  let deployed = 0;
-  let stars = 0;
+async function fetchReadmeSnippet(octokit: Octokit, owner: string, repo: string) {
+  try {
+    const response = await octokit.request("GET /repos/{owner}/{repo}/readme", {
+      owner,
+      repo,
+      headers: {
+        "X-GitHub-Api-Version": "2022-11-28"
+      }
+    });
 
-  projects.forEach((project) => {
-    stars += project.metrics.stars;
-    if (project.homepage) deployed += 1;
-    if (project.language) {
-      langCounts.set(project.language, (langCounts.get(project.language) ?? 0) + 1);
+    const content = "content" in response.data ? response.data.content : "";
+    if (!content) {
+      return "The repository focuses on solving a concrete engineering problem with reusable implementation patterns and clear technical intent.";
     }
-  });
 
-  const primaryLanguages = Array.from(langCounts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([name, value]) => ({ name, value }));
-
-  return {
-    totalRepos: projects.length,
-    totalStars: stars,
-    primaryLanguages,
-    deploymentCoverage: projects.length
-      ? Math.round((deployed / projects.length) * 100)
-      : 0,
-  };
+    return normalizeReadmeSnippet(decodeBase64(content));
+  } catch {
+    return "The repository focuses on solving a concrete engineering problem with reusable implementation patterns and clear technical intent.";
+  }
 }
 
-export async function buildPortfolioFromGitHubToken(
-  token: string,
-): Promise<PortfolioProfile> {
-  const octokit = new Octokit({ auth: token });
-  const [{ data: user }, { data: repos }] = await Promise.all([
-    octokit.users.getAuthenticated(),
-    octokit.repos.listForAuthenticatedUser({
-      sort: "pushed",
-      per_page: 100,
-      visibility: "all",
-      affiliation: "owner",
-    }),
-  ]);
+export async function fetchUserRepos(username: string, token?: string, limit = 8) {
+  const octokit = createOctokit(token);
+  const response = await octokit.request("GET /users/{username}/repos", {
+    username,
+    sort: "updated",
+    direction: "desc",
+    per_page: Math.min(limit * 3, 100),
+    type: "owner"
+  });
 
-  const filteredRepos = repos
+  const cutoff = subDays(new Date(), DEFAULT_LOOKBACK_DAYS).toISOString();
+
+  const selectedRepos = response.data
     .filter((repo) => !repo.fork)
-    .sort(
-      (a, b) =>
-        new Date(b.pushed_at ?? 0).getTime() - new Date(a.pushed_at ?? 0).getTime(),
-    )
-    .slice(0, 8);
+    .sort((a, b) => (b.stargazers_count ?? 0) - (a.stargazers_count ?? 0))
+    .slice(0, limit);
 
   const projects = await Promise.all(
-    filteredRepos.map(async (repo): Promise<ProjectShowcase> => {
-      const [snippet, commitSummary] = await Promise.all([
-        getCodeSnippet(octokit, user.login, repo.name),
-        getCommitHistory(octokit, user.login, repo.name),
-      ]);
+    selectedRepos.map(async (repo) => {
+      const owner = repo.owner?.login ?? username;
+      const languages = await fetchRepoLanguages(octokit, owner, repo.name);
+      const recentCommits = await fetchRecentCommits(octokit, owner, repo.name, cutoff);
+      const readmeSnippet = await fetchReadmeSnippet(octokit, owner, repo.name);
+      const topicList = repo.topics ?? [];
 
-      return {
+      const techStack = Array.from(new Set([repo.language, ...languages, ...topicList])).filter(
+        (language): language is string => Boolean(language)
+      );
+
+      const commitVelocity = recentCommits.length;
+      const demoUrl = resolveDemoUrl(repo.homepage ?? null, topicList);
+
+      const project: PortfolioProject = {
         id: repo.id,
         name: repo.name,
         fullName: repo.full_name,
         description:
           repo.description ??
-          "This repository has no description yet. Add one to improve portfolio quality.",
-        homepage: repo.homepage,
-        repoUrl: repo.html_url,
-        language: repo.language ?? "Unspecified",
-        topics: repo.topics ?? [],
-        pushedAt: repo.pushed_at ?? new Date().toISOString(),
+          "This project ships a focused solution with production-ready code quality and clear technical scope.",
+        htmlUrl: repo.html_url,
+        demoUrl,
+        homepage: repo.homepage ?? undefined,
+        primaryLanguage: repo.language ?? languages[0] ?? "TypeScript",
+        techStack,
+        topics: topicList,
+        stars: repo.stargazers_count ?? 0,
+        forks: repo.forks_count ?? 0,
+        openIssues: repo.open_issues_count ?? 0,
+        watchers: repo.watchers_count ?? 0,
+        recentCommits,
+        commitVelocity,
+        readmeSnippet,
+        lastUpdatedAt: repo.updated_at ?? repo.pushed_at ?? new Date().toISOString(),
         metrics: {
-          stars: repo.stargazers_count,
-          forks: repo.forks_count,
-          openIssues: repo.open_issues_count,
-          commitsLast30Days: commitSummary.commitsLast30Days,
+          commits30d: commitVelocity,
+          stars: repo.stargazers_count ?? 0,
+          forks: repo.forks_count ?? 0,
+          openIssues: repo.open_issues_count ?? 0,
+          releaseCadence: commitVelocity >= 10 ? "high" : commitVelocity >= 4 ? "medium" : "low"
         },
-        commitHistory: commitSummary.points,
-        snippet,
+        story: buildStory(repo.name, techStack, commitVelocity, Boolean(demoUrl), repo.stargazers_count ?? 0)
       };
-    }),
+
+      return project;
+    })
   );
 
-  const stackSummary = buildStackSummary(projects);
-
-  return {
-    githubLogin: user.login,
-    displayName: user.name ?? user.login,
-    headline: "Shipping practical software with measurable outcomes",
-    summary:
-      "This portfolio is generated from live repository signals: commit momentum, deployment coverage, and code-level implementation detail.",
-    avatarUrl: user.avatar_url,
-    syncedAt: new Date().toISOString(),
-    projects,
-    stackSummary,
-  };
+  return projects;
 }

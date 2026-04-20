@@ -1,33 +1,55 @@
-export interface ProjectImpactMetrics {
+export interface RepoCommit {
+  sha: string;
+  message: string;
+  authoredAt: string;
+  authorName: string;
+}
+
+export interface ImpactMetrics {
+  commits30d: number;
   stars: number;
   forks: number;
   openIssues: number;
-  contributors: number;
-  commitsLast30Days: number;
-  latestCommitAt: string | null;
-  deploymentUrl: string | null;
-  velocityLabel: string;
+  releaseCadence: "high" | "medium" | "low";
 }
 
 export interface PortfolioProject {
   id: number;
-  owner: string;
   name: string;
   fullName: string;
   description: string;
   htmlUrl: string;
-  homepageUrl: string | null;
-  language: string | null;
+  demoUrl?: string;
+  homepage?: string;
+  primaryLanguage: string;
+  techStack: string[];
   topics: string[];
-  stack: string[];
-  snippet: string;
-  updatedAt: string;
-  pushedAt: string;
-  impact: ProjectImpactMetrics;
+  stars: number;
+  forks: number;
+  openIssues: number;
+  watchers: number;
+  recentCommits: RepoCommit[];
+  commitVelocity: number;
+  readmeSnippet: string;
+  lastUpdatedAt: string;
+  metrics: ImpactMetrics;
+  story: string;
 }
 
-export interface RepoSyncResponse {
+export interface PortfolioConfig {
   username: string;
-  syncedAt: string;
+  title: string;
+  summary: string;
   projects: PortfolioProject[];
+  featuredProjectIds: number[];
+  updatedAt: string;
+}
+
+export interface PortfolioAnalysis {
+  totalProjects: number;
+  totalStars: number;
+  averageCommitVelocity: number;
+  dominantStack: string[];
+  strongestProject?: PortfolioProject;
+  skillSignals: string[];
 }

@@ -1,41 +1,29 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-import {
-  extractCheckoutToken,
-  extractCustomerEmail,
-  isPaidLemonEvent,
-  verifyLemonSignature
-} from "@/lib/lemonsqueezy";
-import { markCheckoutAsPaid } from "@/lib/paywall";
-import { saveLemonWebhookEvent } from "@/lib/supabase";
+import { verifyLemonSignature } from "@/lib/lemonsqueezy";
+import { getSupabaseServiceClient } from "@/lib/supabase";
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
+  const signature = request.headers.get("x-signature");
   const rawBody = await request.text();
-  const signature = request.headers.get("x-signature") ?? "";
-  const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET ?? "";
 
-  if (secret && !verifyLemonSignature(rawBody, signature, secret)) {
-    return NextResponse.json({ error: "Invalid webhook signature." }, { status: 401 });
+  if (!verifyLemonSignature(rawBody, signature)) {
+    return NextResponse.json({ error: "Invalid Lemon Squeezy signature." }, { status: 401 });
   }
 
   const payload = JSON.parse(rawBody) as {
-    data?: {
-      id?: string;
-    };
+    meta?: { event_name?: string; custom_data?: Record<string, string> };
+    data?: { id?: string; attributes?: { user_email?: string } };
   };
 
-  await saveLemonWebhookEvent(payload);
-
-  if (isPaidLemonEvent(payload)) {
-    const checkoutToken = extractCheckoutToken(payload);
-
-    if (checkoutToken) {
-      await markCheckoutAsPaid({
-        token: checkoutToken,
-        orderId: payload.data?.id,
-        customerEmail: extractCustomerEmail(payload)
-      });
-    }
+  const supabase = getSupabaseServiceClient();
+  if (supabase) {
+    await supabase.from("lemon_webhook_events").insert({
+      event_name: payload.meta?.event_name ?? "unknown",
+      event_id: payload.data?.id ?? null,
+      customer_email: payload.data?.attributes?.user_email ?? null,
+      raw_payload: payload
+    });
   }
 
   return NextResponse.json({ received: true });

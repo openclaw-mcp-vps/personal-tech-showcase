@@ -1,62 +1,68 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
-import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 
 import "./globals.css";
 
-const heading = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-heading",
-  weight: ["500", "600", "700"]
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"]
 });
 
-const mono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-  weight: ["400", "500"]
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"]
 });
-
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL("https://personal-tech-showcase.dev"),
   title: {
     default: "Personal Tech Showcase",
     template: "%s | Personal Tech Showcase"
   },
   description:
-    "Turn your GitHub repositories into polished, outcome-focused portfolio pages with live demos, stack insights, and impact metrics recruiters care about.",
+    "Turn GitHub repositories into polished project showcases with live demos, technical depth, and measurable engineering impact.",
   keywords: [
     "developer portfolio",
-    "GitHub portfolio",
-    "project showcase",
-    "portfolio builder",
-    "developer branding"
+    "github portfolio generator",
+    "technical project showcase",
+    "portfolio builder for developers",
+    "freelancer portfolio"
   ],
   openGraph: {
     title: "Personal Tech Showcase",
     description:
-      "Automatically transform your repositories into compelling technical case studies.",
-    url: siteUrl,
-    siteName: "Personal Tech Showcase",
-    type: "website"
+      "Share your personal tech projects beautifully with auto-generated stories, stack highlights, and impact metrics.",
+    type: "website",
+    url: "https://personal-tech-showcase.dev",
+    siteName: "Personal Tech Showcase"
   },
   twitter: {
     card: "summary_large_image",
     title: "Personal Tech Showcase",
     description:
-      "Share your personal tech projects beautifully with automated GitHub storytelling."
+      "Build a recruiter-ready technical portfolio from your GitHub repositories in minutes, not weekends."
+  },
+  robots: {
+    index: true,
+    follow: true
   }
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export const viewport: Viewport = {
+  themeColor: "#0d1117"
+};
+
+export default function RootLayout({
+  children
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="en" className="dark">
-      <body
-        className={`${heading.variable} ${mono.variable} bg-[#0d1117] text-slate-100 antialiased`}
-      >
-        <Script src="https://assets.lemonsqueezy.com/lemon.js" strategy="afterInteractive" />
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
+        <Script src="https://assets.lemonsqueezy.com/lemon.js" strategy="afterInteractive" />
       </body>
     </html>
   );
