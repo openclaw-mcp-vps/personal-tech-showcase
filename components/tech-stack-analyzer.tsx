@@ -1,6 +1,5 @@
 "use client";
 
-import { BarChart3, Rocket, Star, Layers } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -10,72 +9,64 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { TechStackSummary } from "@/types/portfolio";
+import type { ProjectTechStackItem } from "@/types/portfolio";
 
 interface TechStackAnalyzerProps {
-  summary: TechStackSummary;
+  title: string;
+  stacks: ProjectTechStackItem[];
 }
 
-export function TechStackAnalyzer({ summary }: TechStackAnalyzerProps) {
-  return (
-    <Card className="border-[#263042] bg-[#161b22] text-[#e6edf3]">
-      <CardHeader>
-        <CardTitle className="text-lg">Tech Stack Analyzer</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-8">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border border-[#263042] bg-[#0d1117] p-4">
-            <div className="mb-2 flex items-center gap-2 text-[#9fb0c3]">
-              <Layers className="h-4 w-4" />
-              Repositories
-            </div>
-            <p className="text-2xl font-semibold">{summary.totalRepos}</p>
-          </div>
-          <div className="rounded-lg border border-[#263042] bg-[#0d1117] p-4">
-            <div className="mb-2 flex items-center gap-2 text-[#9fb0c3]">
-              <Star className="h-4 w-4" />
-              Total Stars
-            </div>
-            <p className="text-2xl font-semibold">{summary.totalStars}</p>
-          </div>
-          <div className="rounded-lg border border-[#263042] bg-[#0d1117] p-4">
-            <div className="mb-2 flex items-center gap-2 text-[#9fb0c3]">
-              <Rocket className="h-4 w-4" />
-              Deployment Coverage
-            </div>
-            <p className="text-2xl font-semibold">{summary.deploymentCoverage}%</p>
-          </div>
-          <div className="rounded-lg border border-[#263042] bg-[#0d1117] p-4">
-            <div className="mb-2 flex items-center gap-2 text-[#9fb0c3]">
-              <BarChart3 className="h-4 w-4" />
-              Distinct Languages
-            </div>
-            <p className="text-2xl font-semibold">
-              {summary.primaryLanguages.length}
-            </p>
-          </div>
-        </div>
+export function TechStackAnalyzer({ title, stacks }: TechStackAnalyzerProps) {
+  const chartData = stacks.slice(0, 6).map((item) => ({
+    language: item.name,
+    percentage: item.percentage,
+  }));
 
-        <div className="h-64 w-full rounded-lg border border-[#263042] bg-[#0d1117] p-3">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={summary.primaryLanguages} margin={{ top: 10, right: 10 }}>
-              <CartesianGrid stroke="#263042" strokeDasharray="3 3" />
-              <XAxis dataKey="name" stroke="#9fb0c3" />
-              <YAxis stroke="#9fb0c3" allowDecimals={false} />
-              <Tooltip
-                cursor={{ fill: "#1f2937" }}
-                contentStyle={{
-                  backgroundColor: "#111827",
-                  border: "1px solid #263042",
-                  borderRadius: 10,
-                }}
-              />
-              <Bar dataKey="value" fill="#2f81f7" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </CardContent>
-    </Card>
+  return (
+    <section className="rounded-2xl border border-[#30363d] bg-[#111827] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-[#8b949e]">
+        {title}
+      </h3>
+      <div className="mt-4 h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="2 4" stroke="#30363d" vertical={false} />
+            <XAxis
+              dataKey="language"
+              tick={{ fill: "#9da7b3", fontSize: 12 }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              tick={{ fill: "#9da7b3", fontSize: 12 }}
+              tickLine={false}
+              axisLine={false}
+              width={32}
+            />
+            <Tooltip
+              cursor={{ fill: "rgba(56, 139, 253, 0.14)" }}
+              contentStyle={{
+                backgroundColor: "#0d1117",
+                border: "1px solid #30363d",
+                color: "#e6edf3",
+                borderRadius: "10px",
+              }}
+            />
+            <Bar
+              dataKey="percentage"
+              radius={[8, 8, 0, 0]}
+              fill="url(#techGradient)"
+              maxBarSize={42}
+            />
+            <defs>
+              <linearGradient id="techGradient" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="#2f81f7" />
+                <stop offset="100%" stopColor="#1f6feb" />
+              </linearGradient>
+            </defs>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
   );
 }

@@ -11,27 +11,24 @@ NICHE: portfolio-tools
 PRICE: $$9/mo
 
 ARCHITECTURE SPEC:
-A Next.js application that connects to GitHub API to fetch repository data, analyzes projects automatically, and generates beautiful portfolio showcases. Uses Supabase for user data and project configurations, with Lemon Squeezy handling subscriptions.
+A Next.js application with GitHub OAuth integration that automatically fetches repository data, analyzes tech stacks, and generates beautiful portfolio showcases. Uses Supabase for user data and portfolio configurations, with Lemon Squeezy for subscription management.
 
 PLANNED FILES:
 - app/page.tsx
 - app/dashboard/page.tsx
-- app/showcase/[username]/page.tsx
-- app/api/github/repos/route.ts
-- app/api/github/analyze/route.ts
+- app/portfolio/[username]/page.tsx
+- app/api/auth/github/route.ts
+- app/api/repos/sync/route.ts
 - app/api/webhooks/lemonsqueezy/route.ts
-- components/ui/repo-card.tsx
-- components/ui/tech-stack-badge.tsx
-- components/ui/metrics-display.tsx
 - components/portfolio-builder.tsx
-- components/showcase-preview.tsx
-- lib/github-api.ts
-- lib/project-analyzer.ts
+- components/project-showcase.tsx
+- components/tech-stack-analyzer.tsx
+- lib/github.ts
 - lib/supabase.ts
 - lib/lemonsqueezy.ts
 - types/portfolio.ts
 
-DEPENDENCIES: next, react, tailwindcss, @supabase/supabase-js, @lemonsqueezy/lemonsqueezy.js, octokit, framer-motion, lucide-react, date-fns, zod, react-hook-form
+DEPENDENCIES: next, react, tailwindcss, @supabase/supabase-js, @octokit/rest, @lemonsqueezy/lemonsqueezy.js, next-auth, framer-motion, recharts, prismjs, date-fns, zod
 
 REQUIREMENTS:
 - Next.js 15 with App Router (app/ directory)
@@ -39,7 +36,7 @@ REQUIREMENTS:
 - Tailwind CSS v4
 - shadcn/ui components (npx shadcn@latest init, then add needed components)
 - Dark theme ONLY — background #0d1117, no light mode
-- Lemon Squeezy checkout overlay for payments
+- Stripe Payment Link for payments (hosted checkout — use the URL directly as the Buy button href)
 - Landing page that converts: hero, problem, solution, pricing, FAQ
 - The actual tool/feature behind a paywall (cookie-based access after purchase)
 - Mobile responsive
@@ -59,9 +56,13 @@ REQUIREMENTS:
   to package.json dependencies and re-run npm install + npm run build until it passes.
 
 ENVIRONMENT VARIABLES (create .env.example):
-- NEXT_PUBLIC_LEMON_SQUEEZY_STORE_ID
-- NEXT_PUBLIC_LEMON_SQUEEZY_PRODUCT_ID
-- LEMON_SQUEEZY_WEBHOOK_SECRET
+- NEXT_PUBLIC_STRIPE_PAYMENT_LINK  (full URL, e.g. https://buy.stripe.com/test_XXX)
+- NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY  (pk_test_... or pk_live_...)
+- STRIPE_WEBHOOK_SECRET  (set when webhook is wired)
+
+BUY BUTTON RULE: the Buy button's href MUST be `process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK`
+used as-is — do NOT construct URLs from a product ID, do NOT prepend any base URL,
+do NOT wrap it in an embed iframe. The link opens Stripe's hosted checkout directly.
 
 After creating all files:
 1. Run: npm install

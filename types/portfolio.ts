@@ -1,16 +1,20 @@
-export interface RepoCommit {
+export interface GitHubCommitSummary {
   sha: string;
   message: string;
-  authoredAt: string;
-  authorName: string;
+  committedAt: string;
+  additions: number;
+  deletions: number;
 }
 
-export interface ImpactMetrics {
-  commits30d: number;
-  stars: number;
-  forks: number;
-  openIssues: number;
-  releaseCadence: "high" | "medium" | "low";
+export interface ProjectMetric {
+  label: string;
+  value: number;
+  hint: string;
+}
+
+export interface ProjectTechStackItem {
+  name: string;
+  percentage: number;
 }
 
 export interface PortfolioProject {
@@ -18,38 +22,47 @@ export interface PortfolioProject {
   name: string;
   fullName: string;
   description: string;
-  htmlUrl: string;
-  demoUrl?: string;
-  homepage?: string;
+  repoUrl: string;
+  homepageUrl: string | null;
+  defaultBranch: string;
+  archived: boolean;
   primaryLanguage: string;
-  techStack: string[];
   topics: string[];
   stars: number;
   forks: number;
   openIssues: number;
-  watchers: number;
-  recentCommits: RepoCommit[];
-  commitVelocity: number;
+  createdAt: string;
+  pushedAt: string;
+  commitCount30d: number;
+  weeklyVelocity: number;
+  impactScore: number;
   readmeSnippet: string;
-  lastUpdatedAt: string;
-  metrics: ImpactMetrics;
-  story: string;
+  codeSnippet: string;
+  codeLanguage: string;
+  techStack: ProjectTechStackItem[];
+  recentCommits: GitHubCommitSummary[];
+  metrics: ProjectMetric[];
 }
 
-export interface PortfolioConfig {
+export interface PortfolioSummary {
   username: string;
-  title: string;
-  summary: string;
+  generatedAt: string;
   projects: PortfolioProject[];
-  featuredProjectIds: number[];
-  updatedAt: string;
+  totalStars: number;
+  totalCommits30d: number;
+  averageVelocity: number;
+  topTechnologies: ProjectTechStackItem[];
 }
 
-export interface PortfolioAnalysis {
-  totalProjects: number;
-  totalStars: number;
-  averageCommitVelocity: number;
-  dominantStack: string[];
-  strongestProject?: PortfolioProject;
-  skillSignals: string[];
+export interface RepoSyncResult {
+  success: boolean;
+  username: string;
+  projects: PortfolioProject[];
+  generatedAt: string;
+  topTechnologies: ProjectTechStackItem[];
+  totals: {
+    stars: number;
+    commits30d: number;
+    projects: number;
+  };
 }

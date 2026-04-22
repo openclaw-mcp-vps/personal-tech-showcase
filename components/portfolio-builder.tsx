@@ -1,202 +1,173 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { motion } from "framer-motion";
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-
-import { ShowcasePreview } from "@/components/showcase-preview";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RepoCard } from "@/components/ui/repo-card";
-import type { PortfolioAnalysis, PortfolioProject } from "@/types/portfolio";
+import { ProjectShowcase } from "@/components/project-showcase";
+import { TechStackAnalyzer } from "@/components/tech-stack-analyzer";
+import type { RepoSyncResult } from "@/types/portfolio";
 
-const formSchema = z.object({
-  username: z
-    .string()
-    .min(1, "GitHub username is required.")
-    .regex(/^[a-zA-Z0-9-]+$/, "Use only letters, numbers, and hyphens."),
-  githubToken: z.string().optional()
-});
+interface PortfolioBuilderProps {
+  initialUsername?: string;
+}
 
-type FormValues = z.infer<typeof formSchema>;
+export function PortfolioBuilder({ initialUsername = "" }: PortfolioBuilderProps) {
+  const [username, setUsername] = useState(initialUsername);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [data, setData] = useState<RepoSyncResult | null>(null);
 
-export function PortfolioBuilder() {
-  const [repos, setRepos] = useState<PortfolioProject[]>([]);
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [analysis, setAnalysis] = useState<PortfolioAnalysis | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loadingRepos, setLoadingRepos] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      username: "",
-      githubToken: ""
+  const stats = useMemo(() => {
+    if (!data) {
+      return [];
     }
-  });
 
-  const watchedUsername = form.watch("username");
+    return [
+      {
+        label: "Projects Profiled",
+        value: data.totals.projects,
+        helper: "Most recently active repositories",
+      },
+      {
+        label: "Total Stars",
+        value: data.totals.stars,
+        helper: "Combined social proof across projects",
+      },
+      {
+        label: "Commits in 30 days",
+        value: data.totals.commits30d,
+        helper: "Recent implementation intensity",
+      },
+    ];
+  }, [data]);
 
-  const selectedProjects = useMemo(
-    () => repos.filter((project) => selectedIds.includes(project.id)),
-    [repos, selectedIds]
-  );
-
-  const toggleProject = (projectId: number) => {
-    setSelectedIds((current) =>
-      current.includes(projectId) ? current.filter((id) => id !== projectId) : [...current, projectId]
-    );
-  };
-
-  const loadRepos = form.handleSubmit(async (values) => {
-    setError(null);
-    setAnalysis(null);
-    setLoadingRepos(true);
+  async function syncRepos() {
+    setError("");
+    setIsLoading(true);
 
     try {
-      const response = await fetch(`/api/github/repos?username=${encodeURIComponent(values.username)}&limit=9`, {
-        headers: values.githubToken
-          ? {
-              Authorization: `Bearer ${values.githubToken}`
-            }
-          : undefined
-      });
-
-      const payload = (await response.json()) as { repos?: PortfolioProject[]; error?: string };
-
-      if (!response.ok || !payload.repos) {
-        throw new Error(payload.error ?? "Unable to load repositories for this user.");
-      }
-
-      setRepos(payload.repos);
-      setSelectedIds(payload.repos.slice(0, 3).map((repo) => repo.id));
-    } catch (requestError) {
-      setRepos([]);
-      setSelectedIds([]);
-      setError(requestError instanceof Error ? requestError.message : "Unexpected GitHub API error.");
-    } finally {
-      setLoadingRepos(false);
-    }
-  });
-
-  const runAnalysis = async () => {
-    if (selectedProjects.length === 0) {
-      setError("Select at least one project before running analysis.");
-      return;
-    }
-
-    setError(null);
-    setAnalyzing(true);
-
-    try {
-      const response = await fetch("/api/github/analyze", {
+      const response = await fetch("/api/repos/sync", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ projects: selectedProjects })
+        body: JSON.stringify({ username: username.trim() }),
       });
 
-      const payload = (await response.json()) as { analysis?: PortfolioAnalysis; error?: string };
+      const payload = (await response.json()) as RepoSyncResult & { error?: string };
 
-      if (!response.ok || !payload.analysis) {
-        throw new Error(payload.error ?? "Project analysis failed.");
+      if (!response.ok) {
+        throw new Error(payload.error || "Sync failed");
       }
 
-      setAnalysis(payload.analysis);
+      setData(payload);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Unexpected analyzer error.");
-      setAnalysis(null);
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Could not sync repositories",
+      );
     } finally {
-      setAnalyzing(false);
+      setIsLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-8 px-4 pb-20 pt-8 sm:px-6 lg:px-8">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="grid gap-6 lg:grid-cols-[1fr_1.1fr]"
-      >
-        <Card className="surface">
-          <CardHeader>
-            <CardTitle>Import and Curate Projects</CardTitle>
-            <CardDescription>
-              Pull your repositories, choose the strongest work, and generate narrative-rich project cards with proof of
-              execution.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form className="space-y-4" onSubmit={loadRepos}>
-              <div className="space-y-2">
-                <Label htmlFor="username">GitHub Username</Label>
-                <Input id="username" placeholder="octocat" {...form.register("username")} />
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  Public repositories are supported without auth. Add a token to avoid API rate limits.
-                </p>
-                {form.formState.errors.username ? (
-                  <p className="text-xs text-red-300">{form.formState.errors.username.message}</p>
-                ) : null}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="githubToken">GitHub Token (Optional)</Label>
-                <Input id="githubToken" type="password" placeholder="ghp_..." {...form.register("githubToken")} />
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <Button type="submit" disabled={loadingRepos}>
-                  {loadingRepos ? "Fetching repositories..." : "Fetch repositories"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={selectedIds.length === 0 || analyzing}
-                  onClick={runAnalysis}
-                >
-                  {analyzing ? "Analyzing projects..." : "Generate analysis"}
-                </Button>
-              </div>
-
-              {error ? <p className="text-sm text-red-300">{error}</p> : null}
-
-              {repos.length > 0 ? (
-                <p className="text-sm text-[var(--muted-foreground)]">
-                  Loaded {repos.length} repositories. {selectedIds.length} currently selected for your showcase.
-                </p>
-              ) : null}
-            </form>
-          </CardContent>
-        </Card>
-
-        <ShowcasePreview username={watchedUsername || "your-profile"} projects={selectedProjects} analysis={analysis} />
-      </motion.div>
-
-      {repos.length > 0 ? (
-        <section className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-xl font-semibold">Project Candidates</h2>
-            <Link
-              className="text-sm font-medium text-[#9ecbff] hover:underline"
-              href={`/showcase/${encodeURIComponent(watchedUsername || "")}`}
-            >
-              Open public showcase page
-            </Link>
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-[#30363d] bg-[#111827] p-5 shadow-[0_18px_45px_rgba(0,0,0,0.28)]">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-xs uppercase tracking-wide text-[#8b949e]">
+              Portfolio Builder
+            </p>
+            <h2 className="mt-1 text-2xl font-semibold text-[#e6edf3]">
+              Convert repository activity into recruiter-ready project stories
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[#9da7b3]">
+              Enter a GitHub username, sync recent repositories, and instantly generate
+              technical impact narratives with live demo links, stack breakdowns, and
+              commit velocity metrics.
+            </p>
           </div>
+          <a
+            href="/api/auth/github"
+            className="text-sm font-medium text-[#58a6ff] underline-offset-4 hover:underline"
+          >
+            Connect GitHub OAuth for private repositories
+          </a>
+        </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {repos.map((repo) => (
-              <RepoCard key={repo.id} project={repo} selected={selectedIds.includes(repo.id)} onToggle={toggleProject} />
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <label htmlFor="github-username" className="sr-only">
+            GitHub Username
+          </label>
+          <input
+            id="github-username"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            placeholder="e.g. torvalds"
+            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3.5 py-2.5 text-sm text-[#e6edf3] outline-none transition focus:border-[#58a6ff]"
+          />
+          <Button
+            onClick={syncRepos}
+            disabled={isLoading || username.trim().length === 0}
+            className="h-11 rounded-lg bg-[#1f6feb] px-5 text-sm font-semibold text-white hover:bg-[#2f81f7]"
+          >
+            {isLoading ? "Syncing..." : "Sync Repositories"}
+          </Button>
+        </div>
+
+        {error ? (
+          <p className="mt-3 rounded-lg border border-[#f85149]/40 bg-[#f85149]/10 px-3 py-2 text-sm text-[#ffb4ad]">
+            {error}
+          </p>
+        ) : null}
+      </section>
+
+      {data ? (
+        <motion.section
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: "easeOut" }}
+          className="space-y-6"
+        >
+          <div className="grid gap-3 md:grid-cols-3">
+            {stats.map((item) => (
+              <div
+                key={item.label}
+                className="rounded-xl border border-[#30363d] bg-[#111827] p-4"
+              >
+                <p className="text-xs uppercase tracking-wide text-[#8b949e]">{item.label}</p>
+                <p className="mt-1 text-2xl font-semibold text-[#e6edf3]">{item.value}</p>
+                <p className="mt-1 text-xs text-[#9da7b3]">{item.helper}</p>
+              </div>
             ))}
           </div>
-        </section>
+
+          <TechStackAnalyzer
+            title={`Top Technology Signals for ${data.username}`}
+            stacks={data.topTechnologies}
+          />
+
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#30363d] bg-[#111827] p-4">
+            <div>
+              <p className="text-sm font-medium text-[#e6edf3]">Public Portfolio Link</p>
+              <p className="text-xs text-[#9da7b3]">Share this link with recruiters and clients</p>
+            </div>
+            <a
+              href={`/portfolio/${data.username}`}
+              className="rounded-lg border border-[#2f81f7]/55 bg-[#1f6feb]/15 px-3 py-2 text-sm font-medium text-[#58a6ff] hover:bg-[#1f6feb]/25"
+            >
+              /portfolio/{data.username}
+            </a>
+          </div>
+
+          <div className="space-y-4">
+            {data.projects.map((project) => (
+              <ProjectShowcase key={project.id} project={project} />
+            ))}
+          </div>
+        </motion.section>
       ) : null}
     </div>
   );

@@ -1,54 +1,80 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-space-grotesk);
+  --font-heading: var(--font-space-grotesk);
+  --radius-sm: calc(var(--radius) * 0.7);
+  --radius-md: calc(var(--radius) * 0.85);
+  --radius-lg: var(--radius);
+}
 
 :root {
   --background: #0d1117;
   --foreground: #e6edf3;
-  --card: #161b22;
+  --card: #111827;
   --card-foreground: #e6edf3;
-  --muted: #21262d;
+  --popover: #111827;
+  --popover-foreground: #e6edf3;
+  --primary: #1f6feb;
+  --primary-foreground: #ffffff;
+  --secondary: #162032;
+  --secondary-foreground: #e6edf3;
+  --muted: #0f172a;
   --muted-foreground: #9da7b3;
+  --accent: #1c2b46;
+  --accent-foreground: #f0f6fc;
+  --destructive: #f85149;
   --border: #30363d;
+  --input: #30363d;
   --ring: #58a6ff;
-  --primary: #2f81f7;
-  --primary-foreground: #f0f6fc;
-  --success: #238636;
-  --warning: #d29922;
+  --radius: 0.9rem;
 }
 
-* {
-  border-color: var(--border);
-}
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
 
-html,
-body {
-  min-height: 100%;
-  background: var(--background);
-  color: var(--foreground);
-}
+  html,
+  body {
+    @apply min-h-full;
+  }
 
-body {
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
-  text-rendering: optimizeLegibility;
-}
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-manrope), sans-serif;
+  }
 
-a {
-  color: inherit;
-}
-
-::selection {
-  background: #1f6feb;
-  color: #f0f6fc;
-}
-
-.surface {
-  background: linear-gradient(140deg, #161b22 0%, #0d1117 40%, #101923 100%);
-}
-
-.grid-glow {
-  background-image: radial-gradient(circle at 20% 20%, rgb(56 139 253 / 0.16), transparent 32%),
-    radial-gradient(circle at 78% 32%, rgb(35 134 54 / 0.12), transparent 26%),
-    linear-gradient(rgb(240 246 252 / 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(240 246 252 / 0.04) 1px, transparent 1px);
-  background-size: auto, auto, 32px 32px, 32px 32px;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-space-grotesk), sans-serif;
+  }
 }

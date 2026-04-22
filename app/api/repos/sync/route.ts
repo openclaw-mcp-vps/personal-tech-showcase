@@ -1,59 +1,69 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { verifyPaidCookie, paidCookieName } from "@/lib/access";
+import { fetchPortfolioProjects } from "@/lib/github";
+import { upsertPortfolioSnapshot } from "@/lib/supabase";
 
-import { fetchPortfolioProjectsForViewer } from "@/lib/github";
-import { savePortfolioProjects } from "@/lib/supabase";
-
-const requestSchema = z
-  .object({
-    limit: z.coerce.number().min(1).max(12).default(12)
-  })
-  .partial();
-
-const PAYWALL_COOKIE = "pts_paid";
-const GITHUB_TOKEN_COOKIE = "gh_token";
+const SyncRequestSchema = z.object({
+  username: z
+    .string()
+    .trim()
+    .min(1, "GitHub username is required")
+    .regex(/^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i, "Invalid GitHub username"),
+});
 
 export async function POST(request: NextRequest) {
-  const hasAccess = request.cookies.get(PAYWALL_COOKIE)?.value === "1";
-  if (!hasAccess) {
-    return NextResponse.json({ error: "Paid access required." }, { status: 402 });
-  }
+  const paidCookie = request.cookies.get(paidCookieName)?.value;
+  const paidSession = verifyPaidCookie(paidCookie);
 
-  const githubToken = request.cookies.get(GITHUB_TOKEN_COOKIE)?.value;
-  if (!githubToken) {
+  if (!paidSession.valid) {
     return NextResponse.json(
       {
-        error: "GitHub account not connected.",
-        authUrl: "/api/auth/github"
+        error: "Paid access required. Complete checkout to unlock portfolio sync.",
       },
-      { status: 401 }
+      { status: 402 },
     );
   }
 
-  const body = await request.json().catch(() => ({}));
-  const parsed = requestSchema.safeParse(body);
+  const payload = await request
+    .json()
+    .catch(() => ({ username: request.cookies.get("gh_username")?.value ?? "" }));
+
+  const parsed = SyncRequestSchema.safeParse(payload);
 
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid sync payload." }, { status: 400 });
-  }
-
-  try {
-    const result = await fetchPortfolioProjectsForViewer(githubToken, parsed.data.limit ?? 12);
-
-    await savePortfolioProjects(result.username, result.projects);
-
-    return NextResponse.json({
-      username: result.username,
-      syncedAt: new Date().toISOString(),
-      projects: result.projects
-    });
-  } catch (error) {
-    console.error("Failed to sync repositories", error);
     return NextResponse.json(
       {
-        error: "Could not sync repositories. Reconnect GitHub and try again."
+        error: parsed.error.issues[0]?.message ?? "Invalid request body",
       },
-      { status: 500 }
+      { status: 400 },
+    );
+  }
+
+  const token = request.cookies.get("gh_access_token")?.value;
+
+  try {
+    const result = await fetchPortfolioProjects({
+      username: parsed.data.username,
+      token,
+    });
+
+    await upsertPortfolioSnapshot(parsed.data.username, result).catch(() => {
+      // Snapshot persistence is optional; return sync data anyway.
+    });
+
+    return NextResponse.json(result, { status: 200 });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Could not sync repositories from GitHub";
+
+    return NextResponse.json(
+      {
+        error: message,
+      },
+      { status: 500 },
     );
   }
 }

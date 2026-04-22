@@ -1,87 +1,155 @@
-import crypto from "node:crypto";
-
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
-import {
-  exchangeGithubCodeForToken,
-  fetchGithubUser,
-  getGitHubOAuthUrl
-} from "@/lib/github";
-
+const GITHUB_OAUTH_URL = "https://github.com/login/oauth/authorize";
+const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const STATE_COOKIE = "gh_oauth_state";
-const TOKEN_COOKIE = "gh_token";
-const USERNAME_COOKIE = "gh_username";
+const TOKEN_COOKIE = "gh_access_token";
+const USER_COOKIE = "gh_username";
 
-function cookieOptions() {
-  return {
-    path: "/",
-    sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production"
-  };
+function buildRedirectUri(request: NextRequest) {
+  return new URL("/api/auth/github", request.url).toString();
 }
 
 export async function GET(request: NextRequest) {
-  const url = new URL(request.url);
-  const code = url.searchParams.get("code");
-  const incomingState = url.searchParams.get("state");
+  const code = request.nextUrl.searchParams.get("code");
+  const state = request.nextUrl.searchParams.get("state");
 
   const clientId = process.env.GITHUB_CLIENT_ID;
   const clientSecret = process.env.GITHUB_CLIENT_SECRET;
 
-  if (!clientId || !clientSecret) {
+  if (!clientId) {
     return NextResponse.json(
       {
-        error:
-          "GitHub OAuth is not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET first."
+        error: "Missing GITHUB_CLIENT_ID",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL || url.origin;
-  const redirectUri = `${origin}/api/auth/github`;
+  if (!code) {
+    const oauthState = randomUUID();
+    const redirectUri = buildRedirectUri(request);
 
-  if (code) {
-    const expectedState = request.cookies.get(STATE_COOKIE)?.value;
+    const authorizeUrl = new URL(GITHUB_OAUTH_URL);
+    authorizeUrl.searchParams.set("client_id", clientId);
+    authorizeUrl.searchParams.set("redirect_uri", redirectUri);
+    authorizeUrl.searchParams.set("scope", "read:user repo");
+    authorizeUrl.searchParams.set("state", oauthState);
 
-    if (!incomingState || !expectedState || incomingState !== expectedState) {
-      return NextResponse.redirect(new URL("/dashboard?error=oauth_state", origin));
-    }
+    const response = NextResponse.redirect(authorizeUrl);
 
-    try {
-      const token = await exchangeGithubCodeForToken(code, redirectUri);
-      const user = await fetchGithubUser(token);
+    response.cookies.set(STATE_COOKIE, oauthState, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 10,
+    });
 
-      const response = NextResponse.redirect(new URL("/dashboard?connected=1", origin));
-      response.cookies.delete(STATE_COOKIE);
-      response.cookies.set(TOKEN_COOKIE, token, {
-        ...cookieOptions(),
-        httpOnly: true,
-        maxAge: 60 * 60 * 24 * 30
-      });
-      response.cookies.set(USERNAME_COOKIE, user.login, {
-        ...cookieOptions(),
-        httpOnly: false,
-        maxAge: 60 * 60 * 24 * 30
-      });
-
-      return response;
-    } catch (error) {
-      console.error("GitHub OAuth callback failed", error);
-      return NextResponse.redirect(new URL("/dashboard?error=oauth_failed", origin));
-    }
+    return response;
   }
 
-  const state = crypto.randomBytes(24).toString("hex");
-  const response = NextResponse.redirect(
-    getGitHubOAuthUrl({ clientId, redirectUri, state }).toString()
-  );
+  if (!clientSecret) {
+    return NextResponse.json(
+      {
+        error: "Missing GITHUB_CLIENT_SECRET",
+      },
+      { status: 500 },
+    );
+  }
 
-  response.cookies.set(STATE_COOKIE, state, {
-    ...cookieOptions(),
-    httpOnly: true,
-    maxAge: 60 * 10
+  const storedState = request.cookies.get(STATE_COOKIE)?.value;
+
+  if (!state || !storedState || state !== storedState) {
+    return NextResponse.json(
+      {
+        error: "Invalid OAuth state",
+      },
+      { status: 400 },
+    );
+  }
+
+  const tokenResponse = await fetch(GITHUB_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      redirect_uri: buildRedirectUri(request),
+    }),
   });
+
+  if (!tokenResponse.ok) {
+    return NextResponse.json(
+      {
+        error: "GitHub token exchange failed",
+      },
+      { status: 502 },
+    );
+  }
+
+  const tokenPayload = (await tokenResponse.json()) as {
+    access_token?: string;
+    error_description?: string;
+  };
+
+  if (!tokenPayload.access_token) {
+    return NextResponse.json(
+      {
+        error:
+          tokenPayload.error_description || "GitHub did not return an access token",
+      },
+      { status: 400 },
+    );
+  }
+
+  let login = "";
+
+  try {
+    const userResponse = await fetch("https://api.github.com/user", {
+      headers: {
+        Authorization: `Bearer ${tokenPayload.access_token}`,
+        Accept: "application/vnd.github+json",
+      },
+    });
+
+    if (userResponse.ok) {
+      const userPayload = (await userResponse.json()) as { login?: string };
+      login = userPayload.login ?? "";
+    }
+  } catch {
+    // Keep login empty if GitHub user lookup fails.
+  }
+
+  const redirectUrl = new URL("/dashboard", request.url);
+  redirectUrl.searchParams.set("github", "connected");
+
+  const response = NextResponse.redirect(redirectUrl);
+
+  response.cookies.set(TOKEN_COOKIE, tokenPayload.access_token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
+
+  if (login) {
+    response.cookies.set(USER_COOKIE, login, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  }
+
+  response.cookies.delete(STATE_COOKIE);
 
   return response;
 }

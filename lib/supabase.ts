@@ -1,48 +1,133 @@
-import { createClient } from "@supabase/supabase-js";
-
-import type { PortfolioConfig } from "@/types/portfolio";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { RepoSyncResult } from "@/types/portfolio";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export function getSupabaseClient() {
-  if (!supabaseUrl || !supabaseAnonKey) {
+let cachedPublicClient: SupabaseClient | null = null;
+let cachedServiceClient: SupabaseClient | null = null;
+
+function canUsePublicClient() {
+  return Boolean(supabaseUrl && supabaseAnonKey);
+}
+
+function canUseServiceClient() {
+  return Boolean(supabaseUrl && supabaseServiceRoleKey);
+}
+
+export function getSupabasePublicClient() {
+  if (!canUsePublicClient()) {
     return null;
   }
 
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false
-    }
-  });
+  if (!cachedPublicClient) {
+    cachedPublicClient = createClient(supabaseUrl!, supabaseAnonKey!, {
+      auth: {
+        persistSession: false,
+      },
+    });
+  }
+
+  return cachedPublicClient;
 }
 
 export function getSupabaseServiceClient() {
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!canUseServiceClient()) {
     return null;
   }
 
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false
-    }
-  });
+  if (!cachedServiceClient) {
+    cachedServiceClient = createClient(supabaseUrl!, supabaseServiceRoleKey!, {
+      auth: {
+        persistSession: false,
+      },
+    });
+  }
+
+  return cachedServiceClient;
 }
 
-export async function savePortfolioConfig(config: PortfolioConfig) {
-  const supabase = getSupabaseServiceClient();
-  if (!supabase) {
-    return { persisted: false, reason: "Supabase service role is not configured." } as const;
+export async function upsertPortfolioSnapshot(
+  username: string,
+  snapshot: RepoSyncResult,
+) {
+  const client = getSupabaseServiceClient();
+
+  if (!client) {
+    return;
   }
 
-  const { error } = await supabase.from("portfolio_configs").upsert(config, {
-    onConflict: "username"
-  });
+  await client
+    .from("portfolio_snapshots")
+    .upsert(
+      {
+        username,
+        snapshot,
+        generated_at: snapshot.generatedAt,
+      },
+      { onConflict: "username" },
+    )
+    .throwOnError();
+}
 
-  if (error) {
-    return { persisted: false, reason: error.message } as const;
+export async function readPortfolioSnapshot(username: string) {
+  const client = getSupabaseServiceClient();
+
+  if (!client) {
+    return null;
   }
 
-  return { persisted: true } as const;
+  const response = await client
+    .from("portfolio_snapshots")
+    .select("snapshot")
+    .eq("username", username)
+    .maybeSingle();
+
+  if (response.error || !response.data?.snapshot) {
+    return null;
+  }
+
+  return response.data.snapshot as RepoSyncResult;
+}
+
+export async function recordAccessGrant(
+  email: string,
+  source: string,
+  externalId?: string,
+) {
+  const client = getSupabaseServiceClient();
+
+  if (!client) {
+    return;
+  }
+
+  await client
+    .from("access_grants")
+    .upsert(
+      {
+        email: email.toLowerCase(),
+        source,
+        external_id: externalId ?? null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "email" },
+    )
+    .throwOnError();
+}
+
+export async function hasRemoteAccessGrant(email: string) {
+  const client = getSupabaseServiceClient();
+
+  if (!client) {
+    return false;
+  }
+
+  const response = await client
+    .from("access_grants")
+    .select("email")
+    .eq("email", email.toLowerCase())
+    .maybeSingle();
+
+  return Boolean(response.data?.email);
 }
